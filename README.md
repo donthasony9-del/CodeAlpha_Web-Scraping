@@ -251,7 +251,7 @@ Task 1 — Web Scraping
 
 # Author
 
-SRINITHA K
+SONY D
 
 ---
 
