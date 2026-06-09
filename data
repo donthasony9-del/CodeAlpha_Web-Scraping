@@ -1,0 +1,300 @@
+import requests
+from bs4 import BeautifulSoup
+import pandas as pd
+import logging
+import time
+import random
+from datetime import datetime
+
+# =========================================================
+# PROJECT : CODEALPHA WEB SCRAPING PROJECT
+# AUTHOR  : YOUR NAME SRINITHA
+# PURPOSE : PROFESSIONAL BOOK DATA SCRAPER
+# =========================================================
+
+# =========================
+# CONFIGURATION
+# =========================
+
+BASE_URL = "https://books.toscrape.com/catalogue/page-{}.html"
+
+TOTAL_PAGES = 10
+
+HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/125.0 Safari/537.36"
+    )
+}
+
+CSV_OUTPUT = "books_data.csv"
+EXCEL_OUTPUT = "books_data.xlsx"
+
+# =========================
+# LOGGING CONFIGURATION
+# =========================
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s | %(levelname)s | %(message)s"
+)
+
+# =========================
+# REQUEST FUNCTION
+# =========================
+
+def get_page_content(url):
+
+    try:
+        response = requests.get(
+            url,
+            headers=HEADERS,
+            timeout=10
+        )
+
+        response.raise_for_status()
+
+        return response.text
+
+    except requests.exceptions.RequestException as error:
+
+        logging.error(f"Request Failed: {error}")
+
+        return None
+
+# =========================
+# SCRAPE SINGLE PAGE
+# =========================
+
+def scrape_page(page_number):
+
+    logging.info(f"Scraping Page {page_number}")
+
+    url = BASE_URL.format(page_number)
+
+    html_content = get_page_content(url)
+
+    if not html_content:
+        return []
+
+    soup = BeautifulSoup(html_content, "lxml")
+
+    books = soup.find_all(
+        "article",
+        class_="product_pod"
+    )
+
+    scraped_books = []
+
+    for book in books:
+
+        try:
+
+            # =========================
+            # BOOK TITLE
+            # =========================
+
+            title = book.h3.a["title"].strip()
+
+            # =========================
+            # PRICE
+            # =========================
+
+            price = book.find(
+                "p",
+                class_="price_color"
+            ).text.strip()
+
+            cleaned_price = (
+                price.replace("£", "")
+            )
+
+            # =========================
+            # AVAILABILITY
+            # =========================
+
+            availability = book.find(
+                "p",
+                class_="instock availability"
+            ).text.strip()
+
+            # =========================
+            # STAR RATING
+            # =========================
+
+            rating_tag = book.find(
+                "p",
+                class_="star-rating"
+            )
+
+            rating = rating_tag["class"][1]
+
+            # =========================
+            # PRODUCT URL
+            # =========================
+
+            relative_url = book.h3.a["href"]
+
+            product_url = (
+                "https://books.toscrape.com/catalogue/"
+                + relative_url
+            )
+
+            # =========================
+            # SCRAPED DATE
+            # =========================
+
+            scraped_date = datetime.now().strftime(
+                "%Y-%m-%d %H:%M:%S"
+            )
+
+            # =========================
+            # APPEND DATA
+            # =========================
+
+            scraped_books.append({
+
+                "Title": title,
+
+                "Price (£)": cleaned_price,
+
+                "Availability": availability,
+
+                "Rating": rating,
+
+                "Product URL": product_url,
+
+                "Scraped Date": scraped_date
+
+            })
+
+        except Exception as error:
+
+            logging.warning(
+                f"Book Parsing Failed: {error}"
+            )
+
+    return scraped_books
+
+# =========================
+# MAIN SCRAPER
+# =========================
+
+def main():
+
+    logging.info("========== SCRAPING STARTED ==========")
+
+    all_books = []
+
+    for page in range(1, TOTAL_PAGES + 1):
+
+        page_books = scrape_page(page)
+
+        all_books.extend(page_books)
+
+        # Random Delay
+        time.sleep(random.uniform(1, 3))
+
+    # =========================
+    # CREATE DATAFRAME
+    # =========================
+
+    df = pd.DataFrame(all_books)
+
+    # =========================
+    # DATA CLEANING
+    # =========================
+
+    logging.info("Cleaning Data")
+
+    # Remove Duplicates
+    df.drop_duplicates(inplace=True)
+
+    # Remove Null Values
+    df.dropna(inplace=True)
+
+    # Convert Price Column
+    df["Price (£)"] = df["Price (£)"].astype(float)
+
+    # =========================
+    # DATA ANALYSIS
+    # =========================
+
+    logging.info("Generating Insights")
+
+    total_books = len(df)
+
+    average_price = round(
+        df["Price (£)"].mean(),
+        2
+    )
+
+    highest_price = df["Price (£)"].max()
+
+    lowest_price = df["Price (£)"].min()
+
+    # =========================
+    # EXPORT CSV
+    # =========================
+
+    df.to_csv(
+        CSV_OUTPUT,
+        index=False,
+        encoding="utf-8"
+    )
+
+    logging.info(
+        f"CSV Saved Successfully: {CSV_OUTPUT}"
+    )
+
+    # =========================
+    # EXPORT EXCEL
+    # =========================
+
+    df.to_excel(
+        EXCEL_OUTPUT,
+        index=False
+    )
+
+    logging.info(
+        f"Excel Saved Successfully: {EXCEL_OUTPUT}"
+    )
+
+    # =========================
+    # FINAL SUMMARY
+    # =========================
+
+    print("\n")
+
+    print("=" * 60)
+
+    print("         CODEALPHA WEB SCRAPING PROJECT")
+
+    print("=" * 60)
+
+    print(f"Total Books Scraped   : {total_books}")
+
+    print(f"Average Book Price    : £{average_price}")
+
+    print(f"Highest Book Price    : £{highest_price}")
+
+    print(f"Lowest Book Price     : £{lowest_price}")
+
+    print(f"CSV Output File       : {CSV_OUTPUT}")
+
+    print(f"Excel Output File     : {EXCEL_OUTPUT}")
+
+    print("Project Status        : SUCCESS")
+
+    print("=" * 60)
+
+    print("\n")
+
+# =========================
+# DRIVER CODE
+# =========================
+
+if __name__ == "__main__":
+
+    main()
